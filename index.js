@@ -5,9 +5,13 @@ const bcrypt = require("bcrypt");
 const { MongoClient, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const { addHours, addMinutes, format } = require('date-fns');
+const cookieParser = require("cookie-parser");
+
 
 const app = express();
 const port = process.env.PORT || 5000;
+app.use(cookieParser());
+
 
 app.use(cors());
 app.use(express.json());
@@ -23,11 +27,11 @@ async function run() {
   try {
     // Connect to MongoDB
     await client.connect();
-    console.log("Connected to MongoDB");
+    //console.log("Connected to MongoDB");
 
     const db = client.db("luminedge");
     const usersCollection = db.collection("users");
-   // const coursesCollection = db.collection("courses");
+    const coursesCollection = db.collection("courses");
     const schedulesCollection = db.collection("schedules");
     const bookingMockCollection = db.collection("bookingMock");
 
@@ -40,17 +44,23 @@ async function run() {
     //       await coursesCollection.insertOne({ name: course, createdAt: new Date(), updatedAt: new Date() });
     //     }
     //   }
-    //   console.log("Courses initialized");
+    //   //console.log("Courses initialized");
     // };
     // await initializeCourses();
 
     // Admin Route to Create Schedule for a Course
+    //get all course by anyone
+    app.get("/api/v1/courses", async (req, res) => {
+      const courses = await coursesCollection.find({}).toArray();
+      res.json({ courses });
+    });
+
     app.post("/api/v1/admin/schedule", async (req, res) => {
       const { courseId, startDate, endDate,slot,timeSlots, startTime, endTime, interval = 30 } = req.body;
-      console.log(req.body);
+      //console.log(req.body);
       const startDateObj = new Date(startDate);
       const endDateObj = new Date(endDate);
-      console.log(startDateObj,endDateObj);
+      //console.log(startDateObj,endDateObj);
      
 
           const existingSchedule = await schedulesCollection.findOne({
@@ -70,11 +80,19 @@ async function run() {
 
        res.json({ success: true, message: "Schedules created successfully", timeSlots });
     });
+    //get schedule by date
+    app.get("/api/v1/schedule/:date/:courseId", async (req, res) => {
+      const { date,courseId } = req.params;
+     // //console.log('date',date);
+      const schedules = await schedulesCollection.find({ startDate: date,courseId:courseId }).toArray();
+      res.json({ schedules });
+    });
 
     // User Route to Book a Slot
  // User Route to Book a Slot
  app.post("/api/v1/user/book-slot", async (req, res) => {
-  const { scheduleId, userId, slotId } = req.body;
+  const { scheduleId, userId, slotId,status,testType,testSystem } = req.body;
+  //console.log(req.body);
 
   // Fetch the user
   const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
@@ -83,19 +101,20 @@ async function run() {
   if (!user || user.mock < 1) {
     return res.status(400).json({ message: "Insufficient mock tests available" });
   }
+  ////console.log(user);
 
   // Fetch the schedule
   const schedule = await schedulesCollection.findOne({ _id: new ObjectId(scheduleId) });
   if (!schedule) {
     return res.status(404).json({ message: "Schedule not found" });
   }
-
+  ////console.log(schedule);
   // Retrieve the selected time slot details for the schedule being booked
   const selectedTimeSlot = schedule.timeSlots.find(slot => slot.slotId === slotId);
   if (!selectedTimeSlot || selectedTimeSlot.slot < 1) {
     return res.status(400).json({ message: "Invalid or unavailable time slot selected." });
   }
-console.log(userId,scheduleId,schedule.startDate,slotId);
+////console.log(userId,scheduleId,schedule.startDate,slotId);
 // Check if the user has an existing booking with the same date and exact same time slot
 const existingBooking = await bookingMockCollection.findOne({
   userId: userId,
@@ -129,22 +148,31 @@ if (existingBooking) {
     userId: userId,
     scheduleId: scheduleId,
     slotId: slotId,
+    status,
+    testType,
+    testSystem,
     bookingDate: schedule.startDate,
     startTime: selectedTimeSlot.startTime,
     endTime: selectedTimeSlot.endTime
   };
+  //console.log(bookingRecord);
   await bookingMockCollection.insertOne(bookingRecord);
-
   res.json({ success: true, message: "Slot booked successfully", bookingRecord });
 });
-app.delete("/api/v1/user/cancel-booking", async (req, res) => {
-  const { scheduleId, userId, slotId } = req.body;
+// get all booking by userId
+app.get("/api/v1/user/bookings/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const bookings = await bookingMockCollection.find({ userId }).toArray();
+  res.json({ bookings });
+});
+
+//cancel booking if status is active
+  app.delete("/api/v1/bookings/:bookingId", async (req, res) => {
+  const { bookingId } = req.params;
 
   // Check if the booking exists in bookingCollection
-  const existingBooking = await bookingCollection.findOne({
-    userId: userId,
-    scheduleId: scheduleId,
-    slotId: slotId
+  const existingBooking = await bookingMockCollection.findOne({
+    _id: new ObjectId(bookingId)
   });
 
   if (!existingBooking) {
@@ -152,15 +180,13 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
   }
 
   // Remove the booking from bookingCollection
-  await bookingCollection.deleteOne({
-    userId: userId,
-    scheduleId: scheduleId,
-    slotId: slotId
+  await bookingMockCollection.deleteOne({
+    _id: new ObjectId(bookingId)
   });
 
   // Update the slot in schedulesCollection to make it available again
   await schedulesCollection.updateOne(
-    { _id: new ObjectId(scheduleId), "timeSlots.slotId": slotId },
+    { _id: new ObjectId(existingBooking.scheduleId), "timeSlots.slotId": existingBooking.slotId },
     {
       $inc: { "timeSlots.$.slot": 1 } // Increase slot count by 1
     }
@@ -168,11 +194,18 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
 
   // Increase mock count for the user
   await usersCollection.updateOne(
-    { _id: new ObjectId(userId) },
+    { _id: new ObjectId(existingBooking.userId) },
     { $inc: { mock: 1 } }
   );
 
   res.json({ success: true, message: "Booking canceled successfully" });
+});
+
+//user status by user id
+app.get("/api/v1/user/status/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+  res.json({ user });
 });
 
 
@@ -181,7 +214,7 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
     
     app.post("/api/v1/register", async (req, res) => {
       const { name, email, password,contactNo,mock,result,passportNumber, role } = req.body;
-      console.log(req.body);
+      //console.log(req.body);
     
       //Check if the user already exists by email
       const existingUser = await usersCollection.findOne({ email });
@@ -191,7 +224,7 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
     
       // Hash the password before saving
       const hashedPassword = await bcrypt.hash(password, 10);
-      console.log(hashedPassword);
+      //console.log(hashedPassword);
     
       // Define the role and default fields
       const newUser = {
@@ -227,17 +260,32 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
     // User Login
     app.post("/api/v1/login", async (req, res) => {
       const { email, password } = req.body;
-      console.log(req.body);
+      //console.log(req.body);
       const user = await usersCollection.findOne({ email });
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      const token = jwt.sign({ email: user.email, role: user.role }, process.env.JWT_SECRET, {
+      const token = jwt.sign({ email: user.email,userId:user._id, role: user.role }, process.env.JWT_SECRET, {
         expiresIn: process.env.EXPIRES_IN,
       });
-
+      res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
       res.json({ success: true, accessToken: token });
+    });
+
+    //get single user by id
+    app.get("/api/v1/user/:userId", async (req, res) => {
+      const { userId } = req.params;
+      const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+      res.json({ user });
+    });
+
+    //single user status change
+    app.put("/api/v1/user/status/:userId", async (req, res) => {
+      const { userId } = req.params;
+      const { status } = req.body;
+      await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { status } });
+      res.json({ success: true, message: "User status updated successfully" });
     });
 
     // Test route
@@ -247,7 +295,7 @@ app.delete("/api/v1/user/cancel-booking", async (req, res) => {
 
     // Start the server
     app.listen(port, () => {
-      console.log(`Server is running on http://localhost:${port}`);
+      //console.log(`Server is running on http://localhost:${port}`);
     });
   } finally {
   }
