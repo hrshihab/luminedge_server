@@ -13,7 +13,7 @@ const port = process.env.PORT || 5000;
 app.use(cookieParser());
 
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:3000', credentials: true })); // 
 app.use(express.json());
 
 // MongoDB Connection URL
@@ -55,7 +55,7 @@ async function run() {
       res.json({ courses });
     });
 
-    app.post("/api/v1/admin/schedule", async (req, res) => {
+    app.post("/api/v1/admin/create-schedule", async (req, res) => {
       const { courseId, startDate, endDate,slot,timeSlots, startTime, endTime, interval = 30 } = req.body;
       //console.log(req.body);
       const startDateObj = new Date(startDate);
@@ -269,7 +269,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
       const token = jwt.sign({ email: user.email,userId:user._id, role: user.role }, process.env.JWT_SECRET, {
         expiresIn: process.env.EXPIRES_IN,
       });
-      res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
+      res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
       res.json({ success: true, accessToken: token });
     });
 
@@ -295,7 +295,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
 
     // Start the server
     app.listen(port, () => {
-      //console.log(`Server is running on http://localhost:${port}`);
+      console.log(`Server is running on http://localhost:${port}`);
     });
   } finally {
   }
