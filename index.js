@@ -13,7 +13,7 @@ const port = process.env.PORT || 5000;
 app.use(cookieParser());
 
 
-app.use(cors({ origin: 'http://localhost:3000', credentials: true })); // 
+app.use(cors({ origin: 'http://localhost:3000',credentials: true })); // 
 app.use(express.json());
 
 // MongoDB Connection URL
@@ -56,13 +56,13 @@ async function run() {
     });
 
     app.post("/api/v1/admin/create-schedule", async (req, res) => {
-      //console.log(req.body);
       const schedules = req.body; // Expecting an array of schedule objects
       const failedSchedules = [];
       const successfulSchedules = [];
 
       for (const schedule of schedules) {
         const { courseId, startDate, endDate, slot, timeSlots, startTime, endTime, interval = 30 } = schedule;
+        //convert slot to number
         const startDateObj = new Date(startDate);
         const endDateObj = new Date(endDate);
 
@@ -76,6 +76,12 @@ async function run() {
         if (existingSchedule) {
           failedSchedules.push({ courseId, startDate, endDate, message: "Schedule already exists", timestamp: new Date().toISOString() });
         } else {
+          // Convert slot to a number if it's not already
+          schedule.timeSlots = schedule.timeSlots.map(slot => ({
+            ...slot,
+            slot: Number(slot.slot) // Ensure slot is a number
+          }));
+
           await schedulesCollection.insertOne(schedule);
           successfulSchedules.push({ courseId, startDate, endDate, createdAt: new Date().toISOString() });
         }
@@ -126,7 +132,7 @@ async function run() {
   ////console.log(schedule);
   // Retrieve the selected time slot details for the schedule being booked
   const selectedTimeSlot = schedule.timeSlots.find(slot => slot.slotId === slotId);
-  if (!selectedTimeSlot || selectedTimeSlot.slot < 1) {
+  if (!selectedTimeSlot || Number(selectedTimeSlot.slot) < 1) {
     return res.status(400).json({ message: "Invalid or unavailable time slot selected." });
   }
 ////console.log(userId,scheduleId,schedule.startDate,slotId);
