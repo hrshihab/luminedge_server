@@ -56,29 +56,37 @@ async function run() {
     });
 
     app.post("/api/v1/admin/create-schedule", async (req, res) => {
-      const { courseId, startDate, endDate,slot,timeSlots, startTime, endTime, interval = 30 } = req.body;
       //console.log(req.body);
-      const startDateObj = new Date(startDate);
-      const endDateObj = new Date(endDate);
-      //console.log(startDateObj,endDateObj);
-     
+      const schedules = req.body; // Expecting an array of schedule objects
+      const failedSchedules = [];
+      const successfulSchedules = [];
 
-          const existingSchedule = await schedulesCollection.findOne({
-            courseId,
-            startDate,
-            endDate,
-          });
-          if(existingSchedule){``
-            return res.status(400).json({ message: "Schedule already exists" });
-          }
+      for (const schedule of schedules) {
+        const { courseId, startDate, endDate, slot, timeSlots, startTime, endTime, interval = 30 } = schedule;
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
 
-          else {
-            await schedulesCollection.insertOne(req.body);
-            
-          }
+        const existingSchedule = await schedulesCollection.findOne({
+          courseId,
+          startDate,
+          endDate,
+        });
+        schedule.createdAt = new Date().toISOString();
 
+        if (existingSchedule) {
+          failedSchedules.push({ courseId, startDate, endDate, message: "Schedule already exists", timestamp: new Date().toISOString() });
+        } else {
+          await schedulesCollection.insertOne(schedule);
+          successfulSchedules.push({ courseId, startDate, endDate, createdAt: new Date().toISOString() });
+        }
+      }
 
-       res.json({ success: true, message: "Schedules created successfully", timeSlots });
+      res.json({
+        success: true,
+        message: "Schedules processed",
+        successfulSchedules,
+        failedSchedules,
+      });
     });
     //get schedule by date
     app.get("/api/v1/schedule/:date/:courseId", async (req, res) => {
@@ -88,7 +96,14 @@ async function run() {
       res.json({ schedules });
     });
 
-    // User Route to Book a Slot
+    // get all schedule by user id
+    app.get("/api/v1/schedule/:userId", async (req, res) => {
+      const { userId } = req.params;
+      console.log(userId);
+      const schedules = await schedulesCollection.find({ userId: userId }).toArray();
+      res.json({ schedules });
+    });
+
  // User Route to Book a Slot
  app.post("/api/v1/user/book-slot", async (req, res) => {
   const { scheduleId, userId, slotId,status,testType,testSystem } = req.body;
@@ -260,7 +275,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // User Login
     app.post("/api/v1/login", async (req, res) => {
       const { email, password } = req.body;
-      //console.log(req.body);
+      console.log(req.body);
       const user = await usersCollection.findOne({ email });
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ message: "Invalid email or password" });
