@@ -56,6 +56,7 @@ async function run() {
     });
 
     app.post("/api/v1/admin/create-schedule", async (req, res) => {
+      console.log(req.body);
       const schedules = req.body; // Expecting an array of schedule objects
       const failedSchedules = [];
       const successfulSchedules = [];
@@ -101,6 +102,8 @@ async function run() {
       const schedules = await schedulesCollection.find({ startDate: date,courseId:courseId }).toArray();
       res.json({ schedules });
     });
+
+    
 
     // get all schedule by user id
     app.get("/api/v1/schedule/:userId", async (req, res) => {
@@ -255,7 +258,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
         contactNo,
         passportNumber,
         password: hashedPassword,
-        mock,
+        mock:0,
         result,
         role: role || "user",  // Default role to "user" if not specified
         status: "active",  // Set default status
@@ -275,6 +278,17 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
 
       const users = await usersCollection.find({}).toArray();
       res.json({ users });
+    });
+
+    // update user mock count ${process.env.NEXT_PUBLIC_BACKEND_URL}/user/update/${selectedUser._id}
+    // when mock is updated its add an new field in user collection called totalMock
+    app.put("/api/v1/user/update/:userId/:mock", async (req, res) => {
+      const { userId,mock } = req.params;
+      //convert mock to number  
+      const mockNumber = Number(mock);
+      console.log(userId,mockNumber);
+      await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,totalMock:mockNumber } });
+      res.json({ success: true, message: "User mock count updated successfully" });
     });
     
 
@@ -305,13 +319,91 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     app.put("/api/v1/user/status/:userId", async (req, res) => {
       const { userId } = req.params;
       const { status } = req.body;
-      await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { status } });
-      res.json({ success: true, message: "User status updated successfully" });
+
+      // Validate userId
+      if (!ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: "Invalid user ID format" });
+      }
+
+      try {
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(userId) },
+          { $set: { status } }
+        );
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ success: true, message: "User status updated successfully" });
+      } catch (error) {
+        console.error("Error updating user status:", error); // Log the error
+        res.status(500).json({ message: "Error updating user status", error });
+      }
     });
 
     // Test route
     app.get("/", (req, res) => {
       res.json({ message: "Server is running smoothly", timestamp: new Date() });
+    });
+
+    // Fetch all schedules
+    app.get("/api/v1/admin/get-schedules", async (req, res) => {
+      try {
+        const schedules = await schedulesCollection.find({}).toArray();
+        res.json(schedules);
+      } catch (error) {
+        res.status(500).json({ message: "Error fetching schedules", error });
+      }
+    });
+
+    // Delete a schedule by ID
+    app.delete("/api/v1/admin/delete-schedule/:id", async (req, res) => {
+      const { id } = req.params;
+      console.log(id);
+      try {
+        const result = await schedulesCollection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: "Schedule not found" });
+        }
+        res.json({ success: true, message: "Schedule deleted successfully" });
+      } catch (error) {
+        res.status(500).json({ message: "Error deleting schedule", error });
+      }
+    });
+
+    // Fetch all users
+    app.get("/api/v1/user/all", async (req, res) => {
+      try {
+        console.log("Fetching all users");
+        const users = await usersCollection.find({}).toArray();
+        res.json(users);
+      } catch (error) {
+        res.status(500).json({ message: "Error fetching users", error });
+      }
+    });
+
+    // Update user status
+    app.put("/api/v1/user/status/:userId", async (req, res) => {
+      const { userId } = req.params;
+      const { status } = req.body;
+
+      // Validate userId
+      if (!ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: "Invalid user ID format" });
+      }
+
+      try {
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(userId) },
+          { $set: { status } }
+        );
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ success: true, message: "User status updated successfully" });
+      } catch (error) {
+        console.error("Error updating user status:", error); // Log the error
+        res.status(500).json({ message: "Error updating user status", error });
+      }
     });
 
     // Start the server
