@@ -410,6 +410,103 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     app.listen(port, () => {
       console.log(`Server is running on http://localhost:${port}`);
     });
+
+    // change password route
+ 
+// Change Password Function
+app.put("/api/v1/user/change-password", async (req, res) => { 
+  const { email, oldPassword, newPassword } = req.body;
+  const user = await usersCollection.findOne({ email });
+  const userData = await usersCollection.findOne({
+      email: user.email,
+      status: "active"
+  });
+
+  if (!userData) {
+      throw new Error("User not found or inactive!");
+  }
+
+  const isCorrectPassword = await bcrypt.compare(payload.oldPassword, userData.password);
+
+  if (!isCorrectPassword) {
+      throw new Error("Password incorrect!");
+  }
+
+  const hashedPassword = await bcrypt.hash(payload.newPassword, 12);
+
+  await usersCollection.updateOne(
+      { email: user.email },
+      { $set: { password: hashedPassword, needPasswordChange: false } }
+  );
+
+  return {
+      message: "Password changed successfully!"
+  };
+});
+
+// Forgot Password Function
+app.post("/api/v1/user/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  const userData = await usersCollection.findOne({
+      email: payload.email,
+      status: "active"
+  });
+
+  if (!userData) {
+      throw new Error("User not found or inactive!");
+  }
+
+  const resetPassToken = jwt.sign(
+      { email: userData.email, role: userData.role },
+      process.env.JWT_RESET_PASS_SECRET,
+      { expiresIn: process.env.JWT_RESET_PASS_TOKEN_EXPIRES_IN }
+  );
+
+  const resetPassLink = `${process.env.RESET_PASS_LINK}?userId=${userData._id}&token=${resetPassToken}`;
+
+  await emailSender(
+      userData.email,
+      `
+      <div>
+          <p>Dear User,</p>
+          <p>Your password reset link: 
+              <a href="${resetPassLink}">
+                  <button>Reset Password</button>
+              </a>
+          </p>
+      </div>
+      `
+  );
+});
+
+// Reset Password Function
+app.put("/api/v1/user/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  const isValidToken = jwt.verify(token, process.env.JWT_RESET_PASS_SECRET);
+
+  if (!isValidToken) {
+      throw new Error("Invalid or expired token!");
+  }
+
+  const userData = await usersCollection.findOne({
+      _id: new ObjectId(payload.id),
+      status: "active"
+  });
+
+  if (!userData) {
+      throw new Error("User not found or inactive!");
+  }
+
+  const hashedPassword = await bcrypt.hash(payload.password, 12);
+
+  await usersCollection.updateOne(
+      { _id: new ObjectId(payload.id) },
+      { $set: { password: hashedPassword } }
+  );
+  res.json({ success: true, message: "Password reset successfully" });
+});
+
+    
   } finally {
   }
 }
