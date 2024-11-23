@@ -1,7 +1,9 @@
-import nodemailer from 'nodemailer'
-import config from '../../../config';
+const nodemailer = require('nodemailer');
 
-const emailSender = async (email, html) => {
+const emailSender = async (to, content) => {
+    console.log(process.env.EMAIL);
+    console.log(process.env.APP_PASS);
+
     const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 587,
@@ -15,15 +17,20 @@ const emailSender = async (email, html) => {
         }
     });
 
-    const info = await transporter.sendMail({
-        from: '"Luminedge mock test" <hrshihab10@gmail.com>', // sender address
-        to: email, // list of receivers
-        subject: "Reset Password Link", // Subject line
-        //text: "Hello world?", // plain text body
-        html, // html body
+    const mailOptions = {
+        from: process.env.EMAIL,
+        to: to,
+        subject: 'Luminedge mock test password reset link',
+        html: content
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+            console.error('Error sending email:', error);
+        } else {
+            console.log('Email sent:', info.response);
+        }
     });
+};
 
-    //console.log("Message sent: %s", info.messageId);
-}
-
-export default emailSender;
+module.exports = { emailSender };

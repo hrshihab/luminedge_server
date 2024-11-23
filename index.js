@@ -6,6 +6,9 @@ const { MongoClient, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const { addHours, addMinutes, format } = require('date-fns');
 const cookieParser = require("cookie-parser");
+const {  emailSender } = require("./emailSender");
+const nodemailer = require('nodemailer');
+
 
 
 const app = express();
@@ -293,19 +296,23 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     
 
     // User Login
-    app.post("/api/v1/login", async (req, res) => {
-      const { email, password } = req.body;
-      console.log(req.body);
-      const user = await usersCollection.findOne({ email });
-      if (!user || !(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
+    app.post("/api/v1/login", async (req, res, next) => {
+      try {
+        const { email, password } = req.body;
+        console.log(req.body);
+        const user = await usersCollection.findOne({ email });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+          return res.status(401).json({ message: "Invalid email or password" });
+        }
 
-      const token = jwt.sign({ email: user.email,userId:user._id, role: user.role }, process.env.JWT_SECRET, {
-        expiresIn: process.env.EXPIRES_IN,
-      });
-      res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
-      res.json({ success: true, accessToken: token });
+        const token = jwt.sign({ email: user.email, userId: user._id, role: user.role }, process.env.JWT_SECRET, {
+          expiresIn: process.env.EXPIRES_IN,
+        });
+        res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
+        res.json({ success: true, accessToken: token });
+      } catch (error) {
+        next(error); // Pass the error to the global error handler
+      }
     });
 
     //get single user by id
@@ -314,6 +321,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
       const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
       res.json({ user });
     });
+    
 
     //single user status change
     app.put("/api/v1/user/status/:userId", async (req, res) => {
@@ -358,7 +366,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // Delete a schedule by ID
     app.delete("/api/v1/admin/delete-schedule/:id", async (req, res) => {
       const { id } = req.params;
-      console.log(id);
+      //console.log(id);
       try {
         const result = await schedulesCollection.deleteOne({ _id: new ObjectId(id) });
         if (result.deletedCount === 0) {
@@ -373,7 +381,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // Fetch all users
     app.get("/api/v1/user/all", async (req, res) => {
       try {
-        console.log("Fetching all users");
+        //console.log("Fetching all users");
         const users = await usersCollection.find({}).toArray();
         res.json(users);
       } catch (error) {
@@ -445,15 +453,17 @@ app.put("/api/v1/user/change-password", async (req, res) => {
 });
 
 // Forgot Password Function
-app.post("/api/v1/user/forgot-password", async (req, res) => {
+app.post("/api/v1/auth/forget-password", async (req, res) => {
   const { email } = req.body;
+ // console.log(email);
+
   const userData = await usersCollection.findOne({
-      email: payload.email,
+      email,
       status: "active"
   });
 
   if (!userData) {
-      throw new Error("User not found or inactive!");
+      return res.status(404).json({ success: false, message: "User not found or inactive!" });
   }
 
   const resetPassToken = jwt.sign(
@@ -463,25 +473,33 @@ app.post("/api/v1/user/forgot-password", async (req, res) => {
   );
 
   const resetPassLink = `${process.env.RESET_PASS_LINK}?userId=${userData._id}&token=${resetPassToken}`;
-
+ console.log(resetPassLink);
   await emailSender(
       userData.email,
       `
       <div>
           <p>Dear User,</p>
-          <p>Your password reset link: 
-              <a href="${resetPassLink}">
-                  <button>Reset Password</button>
-              </a>
-          </p>
+          <p>We received a request to reset your password. Please click the button below to proceed with resetting your password. If you did not request a password reset, please ignore this email.</p>
+          <p>Your password reset link:</p>
+          <a href="${resetPassLink}" style="text-decoration: none;">
+              <button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                  Reset Password
+              </button>
+          </a>
+          <p>If the button above does not work, you can copy and paste the following link into your browser:</p>
+          <p>${resetPassLink}</p>
+          <p>Thank you,</p>
+          <p>Your Company Name</p>
       </div>
       `
   );
+  res.json({ success: true, message: "Password reset link sent successfully" });
 });
 
 // Reset Password Function
-app.put("/api/v1/user/reset-password", async (req, res) => {
-  const { token, password } = req.body;
+app.put("/api/v1/auth/reset-password", async (req, res) => {
+  const { userId, token, newPassword } = req.body;
+  //console.log(userId,token,newPassword);
   const isValidToken = jwt.verify(token, process.env.JWT_RESET_PASS_SECRET);
 
   if (!isValidToken) {
@@ -489,7 +507,7 @@ app.put("/api/v1/user/reset-password", async (req, res) => {
   }
 
   const userData = await usersCollection.findOne({
-      _id: new ObjectId(payload.id),
+      _id: new ObjectId(userId),
       status: "active"
   });
 
@@ -497,10 +515,10 @@ app.put("/api/v1/user/reset-password", async (req, res) => {
       throw new Error("User not found or inactive!");
   }
 
-  const hashedPassword = await bcrypt.hash(payload.password, 12);
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
 
   await usersCollection.updateOne(
-      { _id: new ObjectId(payload.id) },
+      { _id: new ObjectId(userId) },
       { $set: { password: hashedPassword } }
   );
   res.json({ success: true, message: "Password reset successfully" });
@@ -512,3 +530,9 @@ app.put("/api/v1/user/reset-password", async (req, res) => {
 }
 
 run().catch(console.dir);
+
+// Add this middleware at the end of your route definitions
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log the error stack for debugging
+  res.status(500).json({ message: "An unexpected error occurred. Please try again later." });
+});
