@@ -106,6 +106,19 @@ async function run() {
       res.json({ schedules });
     });
 
+    // get users by schedule id and slot id
+    // app.get("/api/v1/schedule/:scheduleId/:slotId", async (req, res) => {
+    //   const { scheduleId,slotId } = req.params;
+    //   console.log(scheduleId,slotId);
+    //   console.log('come');
+    //   console.log("bookingMockCollection");
+    //   const users = await bookingMockCollection.find({ scheduleId,slotId }).toArray();
+    //   if(users.length > 0){
+    //     res.json({ users });
+    //   }else{
+    //     res.status(404).json({ message: "No users found" });
+    //   }
+    // });
     
 
     // get all schedule by user id
@@ -118,7 +131,8 @@ async function run() {
 
  // User Route to Book a Slot
  app.post("/api/v1/user/book-slot", async (req, res) => {
-  const { scheduleId, userId, slotId,status,testType,testSystem } = req.body;
+  //when book a slot add a field name of test 
+  const { scheduleId, userId, slotId,status,testType,testSystem,name } = req.body;
   //console.log(req.body);
 
   // Fetch the user
@@ -176,15 +190,25 @@ if (existingBooking) {
     scheduleId: scheduleId,
     slotId: slotId,
     status,
+    name,
     testType,
     testSystem,
     bookingDate: schedule.startDate,
     startTime: selectedTimeSlot.startTime,
     endTime: selectedTimeSlot.endTime
   };
-  //console.log(bookingRecord);
+  console.log(bookingRecord);
   await bookingMockCollection.insertOne(bookingRecord);
   res.json({ success: true, message: "Slot booked successfully", bookingRecord });
+});
+//get all bookings
+app.get("/api/v1/admin/bookings", async (req, res) => {
+  const bookings = await bookingMockCollection.find({}).toArray();
+  if(bookings.length > 0){
+    res.json({ bookings });
+  }else{
+    res.status(404).json({ message: "No bookings found" });
+  }
 });
 // get all booking by userId
 app.get("/api/v1/user/bookings/:userId", async (req, res) => {
@@ -192,6 +216,34 @@ app.get("/api/v1/user/bookings/:userId", async (req, res) => {
   const bookings = await bookingMockCollection.find({ userId }).toArray();
   res.json({ bookings });
 });
+// Update user booking status and attendance
+app.put("/api/v1/user/bookings/:scheduleId", async (req, res) => {
+  const { scheduleId } = req.params;
+  const { userId, status, attendance } = req.body;
+  console.log(scheduleId, userId, status, attendance)
+
+  // Validate scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(400).json({ message: "Invalid schedule ID format" });
+  }
+
+  try {
+    const updateResult = await bookingMockCollection.updateOne(
+      { scheduleId:scheduleId, userId: userId },
+      { $set: { status: status, attendance: attendance } }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    res.json({ success: true, message: "Booking status and attendance updated successfully" });
+  } catch (error) {
+    console.error("Error updating booking status:", error); // Log the error
+    res.status(500).json({ message: "Error updating booking status", error });
+  }
+});
+
+
 
 //cancel booking if status is active
   app.delete("/api/v1/bookings/:bookingId", async (req, res) => {
@@ -318,7 +370,9 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     //get single user by id
     app.get("/api/v1/user/:userId", async (req, res) => {
       const { userId } = req.params;
+      console.log(userId)
       const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+      
       res.json({ user });
     });
     
@@ -356,7 +410,9 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // Fetch all schedules
     app.get("/api/v1/admin/get-schedules", async (req, res) => {
       try {
+        //console.log("Fetching all schedules");
         const schedules = await schedulesCollection.find({}).toArray();
+        //console.log(schedules); if 0 then also return 0
         res.json(schedules);
       } catch (error) {
         res.status(500).json({ message: "Error fetching schedules", error });
