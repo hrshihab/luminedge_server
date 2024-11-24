@@ -59,7 +59,7 @@ async function run() {
     });
 
     app.post("/api/v1/admin/create-schedule", async (req, res) => {
-      console.log(req.body);
+      //console.log(req.body);
       const schedules = req.body; // Expecting an array of schedule objects
       const failedSchedules = [];
       const successfulSchedules = [];
@@ -124,7 +124,7 @@ async function run() {
     // get all schedule by user id
     app.get("/api/v1/schedule/:userId", async (req, res) => {
       const { userId } = req.params;
-      console.log(userId);
+      //console.log(userId);
       const schedules = await schedulesCollection.find({ userId: userId }).toArray();
       res.json({ schedules });
     });
@@ -197,7 +197,7 @@ if (existingBooking) {
     startTime: selectedTimeSlot.startTime,
     endTime: selectedTimeSlot.endTime
   };
-  console.log(bookingRecord);
+  //console.log(bookingRecord);
   await bookingMockCollection.insertOne(bookingRecord);
   res.json({ success: true, message: "Slot booked successfully", bookingRecord });
 });
@@ -220,7 +220,7 @@ app.get("/api/v1/user/bookings/:userId", async (req, res) => {
 app.put("/api/v1/user/bookings/:scheduleId", async (req, res) => {
   const { scheduleId } = req.params;
   const { userId, status, attendance } = req.body;
-  console.log(scheduleId, userId, status, attendance)
+ // console.log(scheduleId, userId, status, attendance)
 
   // Validate scheduleId
   if (!ObjectId.isValid(scheduleId)) {
@@ -339,10 +339,15 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // when mock is updated its add an new field in user collection called totalMock
     app.put("/api/v1/user/update/:userId/:mock", async (req, res) => {
       const { userId,mock } = req.params;
+      const {transactionId,mockType} = req.body;
+      //console.log(mockType)
       //convert mock to number  
       const mockNumber = Number(mock);
-      console.log(userId,mockNumber);
-      await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,totalMock:mockNumber } });
+      //console.log(userId,mockNumber);
+      const result = await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,mockType : mockType,totalMock:mockNumber,transactionId : transactionId } });
+      if (!result) {
+        return res.status(500).json({ message: "Failed to update user mock count" });
+      }
       res.json({ success: true, message: "User mock count updated successfully" });
     });
     
@@ -351,7 +356,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     app.post("/api/v1/login", async (req, res, next) => {
       try {
         const { email, password } = req.body;
-        console.log(req.body);
+        //console.log(req.body);
         const user = await usersCollection.findOne({ email });
         if (!user || !(await bcrypt.compare(password, user.password))) {
           return res.status(401).json({ message: "Invalid email or password" });
@@ -370,7 +375,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     //get single user by id
     app.get("/api/v1/user/:userId", async (req, res) => {
       const { userId } = req.params;
-      console.log(userId)
+      //console.log(userId)
       const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
       
       res.json({ user });
@@ -578,6 +583,33 @@ app.put("/api/v1/auth/reset-password", async (req, res) => {
       { $set: { password: hashedPassword } }
   );
   res.json({ success: true, message: "Password reset successfully" });
+});
+
+// Block/Unblock User
+app.put("/api/v1/user/block/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { isDeleted } = req.body; // Expecting the isDeleted status from the request body
+
+  //console.log(isDeleted)
+  // Validate userId
+  if (!ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid user ID format" });
+  }
+
+  try {
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { isDeleted: isDeleted } } // Update isDeleted status
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ success: true, message: `User ${isDeleted ? "blocked" : "unblocked"} successfully` });
+  } catch (error) {
+    console.error("Error updating user status:", error); // Log the error
+    res.status(500).json({ message: "Error updating user status", error });
+  }
 });
 
     
