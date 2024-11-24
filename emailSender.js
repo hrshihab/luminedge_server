@@ -17,8 +17,10 @@ const emailSender = async (to, content) => {
         }
     });
 
+    console.log('email',to)
+
     const mailOptions = {
-        from: process.env.EMAIL,
+        from: "Luminedge",
         to: to,
         subject: 'Luminedge mock test password reset link',
         html: content

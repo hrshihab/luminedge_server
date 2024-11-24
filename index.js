@@ -220,7 +220,7 @@ app.get("/api/v1/user/bookings/:userId", async (req, res) => {
 app.put("/api/v1/user/bookings/:scheduleId", async (req, res) => {
   const { scheduleId } = req.params;
   const { userId, status, attendance } = req.body;
- // console.log(scheduleId, userId, status, attendance)
+ console.log(scheduleId, userId, status, attendance)
 
   // Validate scheduleId
   if (!ObjectId.isValid(scheduleId)) {
@@ -516,12 +516,12 @@ app.put("/api/v1/user/change-password", async (req, res) => {
 // Forgot Password Function
 app.post("/api/v1/auth/forget-password", async (req, res) => {
   const { email } = req.body;
- // console.log(email);
+  console.log(email);
 
   const userData = await usersCollection.findOne({
-      email,
-      status: "active"
+      email
   });
+  console.log(userData)
 
   if (!userData) {
       return res.status(404).json({ success: false, message: "User not found or inactive!" });
@@ -569,7 +569,7 @@ app.put("/api/v1/auth/reset-password", async (req, res) => {
 
   const userData = await usersCollection.findOne({
       _id: new ObjectId(userId),
-      status: "active"
+     
   });
 
   if (!userData) {
