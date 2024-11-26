@@ -65,7 +65,7 @@ async function run() {
       const successfulSchedules = [];
 
       for (const schedule of schedules) {
-        const { courseId, startDate, endDate, slot, timeSlots, startTime, endTime, interval = 30 } = schedule;
+        const { courseId, startDate, endDate, slot, timeSlots, startTime, endTime, interval = 30,testType } = schedule;
         //convert slot to number
         const startDateObj = new Date(startDate);
         const endDateObj = new Date(endDate);
@@ -74,6 +74,7 @@ async function run() {
           courseId,
           startDate,
           endDate,
+          testType
         });
         schedule.createdAt = new Date().toISOString();
 
@@ -219,10 +220,10 @@ app.get("/api/v1/user/bookings/:userId", async (req, res) => {
 // Update user booking status and attendance
 app.put("/api/v1/user/bookings/:scheduleId", async (req, res) => {
   const { scheduleId } = req.params;
-  const { userId, status, attendance } = req.body;
- console.log(scheduleId, userId, status, attendance)
+  const { userId, attendance } = req.body;
+ //console.log(scheduleId, userId, attendance)
 
-  // Validate scheduleId
+  // Validate scheduleId 
   if (!ObjectId.isValid(scheduleId)) {
     return res.status(400).json({ message: "Invalid schedule ID format" });
   }
