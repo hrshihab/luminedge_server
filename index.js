@@ -190,7 +190,7 @@ if (existingBooking) {
     userId: userId,
     scheduleId: scheduleId,
     slotId: slotId,
-    status,
+    status:'pending',
     name,
     testType,
     testSystem,
@@ -220,8 +220,9 @@ app.get("/api/v1/user/bookings/:userId", async (req, res) => {
 // Update user booking status and attendance
 app.put("/api/v1/user/bookings/:scheduleId", async (req, res) => {
   const { scheduleId } = req.params;
-  const { userId, attendance } = req.body;
+  const { userId, attendance,status } = req.body;
  //console.log(scheduleId, userId, attendance)
+
 
   // Validate scheduleId 
   if (!ObjectId.isValid(scheduleId)) {
@@ -293,7 +294,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
 
     
     app.post("/api/v1/register", async (req, res) => {
-      const { name, email, password,contactNo,mock,result,passportNumber, role } = req.body;
+      const { name, email, password,contactNo,mock,result,passportNumber, role,transactionId } = req.body;
       //console.log(req.body);
     
       //Check if the user already exists by email
@@ -315,7 +316,9 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
         passportNumber,
         password: hashedPassword,
         mock:0,
+        totalMock:0,
         result,
+        transactionId,
         role: role || "user",  // Default role to "user" if not specified
         status: "active",  // Set default status
         isDeleted: false,  // Default to false for active users
