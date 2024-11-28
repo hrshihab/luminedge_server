@@ -52,6 +52,12 @@ async function run() {
     // await initializeCourses();
 
     // Admin Route to Create Schedule for a Course
+    // add a new field to the all user in usercollection named "testType" where the value is either "Paper-Based"
+    //await usersCollection.updateMany({}, { $set: { testType: "Paper-Based" } });
+
+    // if attendance field is not present in bookingMockCollection then add it and default value is "present"
+    await bookingMockCollection.updateMany({}, { $set: { attendance: "present" } });
+
     //get all course by anyone
     app.get("/api/v1/courses", async (req, res) => {
       const courses = await coursesCollection.find({}).toArray();
@@ -210,6 +216,19 @@ app.get("/api/v1/admin/bookings", async (req, res) => {
   }else{
     res.status(404).json({ message: "No bookings found" });
   }
+});
+//get user attendance number from bookingMockCollection if attendance field is "present"
+app.get("/api/v1/user/attendance/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const bookings = await bookingMockCollection.find({ userId }).toArray();
+  let attendance = 0;
+  for (const booking of bookings) {
+    if (booking.attendance === "present") {
+      attendance++;
+    }
+  }
+  //console.log(attendance);
+  res.json({ attendance });
 });
 // get all booking by userId
 app.get("/api/v1/user/bookings/:userId", async (req, res) => {
