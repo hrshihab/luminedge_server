@@ -16,7 +16,7 @@ const port = process.env.PORT || 5000;
 app.use(cookieParser());
 
 
-app.use(cors({ origin: 'https://luminedge.netlify.app',credentials: true })); // 
+app.use(cors({ origin: ['https://luminedge.netlify.app', 'http://localhost:3000'], credentials: true })); // 
 app.use(express.json());
 
 // MongoDB Connection URL
@@ -217,13 +217,13 @@ app.get("/api/v1/admin/bookings", async (req, res) => {
     res.status(404).json({ message: "No bookings found" });
   }
 });
-//get user attendance number from bookingMockCollection if attendance field is "present"
+//get user attendance number from bookingMockCollection if attendance field is "present" or "absent"
 app.get("/api/v1/user/attendance/:userId", async (req, res) => {
   const { userId } = req.params;
   const bookings = await bookingMockCollection.find({ userId }).toArray();
   let attendance = 0;
   for (const booking of bookings) {
-    if (booking.attendance === "present") {
+    if (booking.attendance === "present" || booking.attendance === "absent") {
       attendance++;
     }
   }
@@ -312,7 +312,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // User Registration
 
     
-    app.post("/api/v1/register", async (req, res) => {
+app.post("/api/v1/register", async (req, res) => {
       const { name, email, password,contactNo,mock,result,passportNumber, role,transactionId } = req.body;
       //console.log(req.body);
     
@@ -352,7 +352,7 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     });
 
     //Get All Users by Admin
-    app.get("/api/v1/admin/users", async (req, res) => {
+app.get("/api/v1/admin/users", async (req, res) => {
 
       const users = await usersCollection.find({}).toArray();
       res.json({ users });
@@ -362,12 +362,12 @@ app.get("/api/v1/user/status/:userId", async (req, res) => {
     // when mock is updated its add an new field in user collection called totalMock
     app.put("/api/v1/user/update/:userId/:mock", async (req, res) => {
       const { userId,mock } = req.params;
-      const {transactionId,mockType} = req.body;
+      const {transactionId,mockType,testType} = req.body;
       //console.log(mockType)
       //convert mock to number  
       const mockNumber = Number(mock);
       //console.log(userId,mockNumber);
-      const result = await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,mockType : mockType,totalMock:mockNumber,transactionId : transactionId } });
+      const result = await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,mockType : mockType,totalMock:mockNumber,transactionId : transactionId ,testType:testType } });
       if (!result) {
         return res.status(500).json({ message: "Failed to update user mock count" });
       }
