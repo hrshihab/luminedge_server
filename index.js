@@ -16,7 +16,7 @@ const port = process.env.PORT || 5000;
 app.use(cookieParser());
 
 
-app.use(cors({ origin: ['https://luminedge.netlify.app','https://luminedge-booking.netlify.app' ,'http://localhost:3000'], credentials: true })); // 
+app.use(cors({ origin: ['https://luminedge.netlify.app','https://luminedge-booking.netlify.app' ,'http://localhost:3000','http://luminedge.io'], credentials: true })); // 
 app.use(express.json());
 
 // MongoDB Connection URL
@@ -361,16 +361,40 @@ app.get("/api/v1/admin/users", async (req, res) => {
     // update user mock count ${process.env.NEXT_PUBLIC_BACKEND_URL}/user/update/${selectedUser._id}
     // when mock is updated its add an new field in user collection called totalMock
     app.put("/api/v1/user/update/:userId/:mock", async (req, res) => {
-      const { userId,mock } = req.params;
-      const {transactionId,mockType,testType} = req.body;
-      //console.log(mockType)
-      //convert mock to number  
+      const { userId, mock } = req.params;
+      const { transactionId, mockType, testType } = req.body;
+
+      // Convert mock to number
       const mockNumber = Number(mock);
-      //console.log(userId,mockNumber);
-      const result = await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { mock: mockNumber,mockType : mockType,totalMock:mockNumber,transactionId : transactionId ,testType:testType } });
+
+      // Fetch the current user to get the existing totalMock
+      const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Calculate the new totalMock
+      const newTotalMock = (user.totalMock || 0) + mockNumber;
+
+      // Update the user document with the new mock and totalMock values
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        {
+          $set: {
+            mock: mockNumber,
+            mockType: mockType,
+            totalMock: newTotalMock,
+            transactionId: transactionId,
+            testType: testType
+          }
+        }
+      );
+
       if (!result) {
         return res.status(500).json({ message: "Failed to update user mock count" });
       }
+
       res.json({ success: true, message: "User mock count updated successfully" });
     });
     
